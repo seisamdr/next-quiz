@@ -1,13 +1,5 @@
-import React from "react";
+const page = () => {
+  return <div>page</div>;
+};
 
-type Props = {};
-
-const Quiz = (props: Props) => {
-    return (
-        <div>
-            QUiz Wak
-        </div>
-    )
-}
-
-export default Quiz;
+export default page;
