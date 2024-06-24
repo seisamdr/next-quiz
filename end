@@ -1,0 +1,17 @@
+[33mcommit 4fdf225639826c1e1f7e1c67892e5439338c6781[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mreza[m[33m)[m
+Author: Abahski <liswarareja@gmail.com>
+Date:   Sun Jun 23 20:34:53 2024 +0700
+
+    Setup database and schema
+
+[33mcommit 67ded014421a7e61f1ad69cd6738fba1523664cd[m[33m ([m[1;32mmaster[m[33m)[m
+Author: Abahski <liswarareja@gmail.com>
+Date:   Sun Jun 23 20:30:45 2024 +0700
+
+    Setup database an google auth
+
+[33mcommit 2280d998f914b93671b5dc77c7c13a1859de26cc[m
+Author: Abahski <liswarareja@gmail.com>
+Date:   Sun Jun 23 09:40:18 2024 +0700
+
+    Initial commit from Create Next App
