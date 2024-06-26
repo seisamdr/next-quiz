@@ -1,136 +1,135 @@
-// import OpenAI from "openai";
+import OpenAI from "openai";
 
-// const openai = new OpenAI({
-//   apiKey: process.env['OPENAI_API_KEY']
-// })
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://api.pawan.krd/gpt-3.5-unfiltered/v1",
+});
 
-// interface OutputFormat {
-//   [key: string]: string | string[] | OutputFormat;
-// }
+interface OutputFormat {
+  [key: string]: string | string[] | OutputFormat;
+}
 
-// export async function strict_output(
-//   system_prompt: string,
-//   user_prompt: string | string[],
-//   output_format: OutputFormat,
-//   default_category: string = "",
-//   output_value_only: boolean = false,
-//   model: string = "gpt-3.5-turbo",
-//   temperature: number = 1,
-//   num_tries: number = 3,
-//   verbose: boolean = false
-// ): Promise<
-//   {
-//     question: string;
-//     answer: string;
-//   }[]
-// > {
-//   const openai = new OpenAI({
-//     apiKey: process.env['OPENAI_API_KEY']
-//   });
+export async function strict_output(
+  system_prompt: string,
+  user_prompt: string | string[],
+  output_format: OutputFormat,
+  default_category: string = "",
+  output_value_only: boolean = false,
+  model: string = "gpt-3.5-unfiltered",
+  temperature: number = 1,
+  num_tries: number = 3,
+  verbose: boolean = false
+): Promise<
+  {
+    question: string;
+    answer: string;
+  }[]
+> {
+  const list_input: boolean = Array.isArray(user_prompt);
+  const dynamic_elements: boolean = /<.*?>/.test(JSON.stringify(output_format));
+  const list_output: boolean = /\[.*?\]/.test(JSON.stringify(output_format));
+  let error_msg: string = "";
 
-//   const list_input: boolean = Array.isArray(user_prompt);
-//   const dynamic_elements: boolean = /<.*?>/.test(JSON.stringify(output_format));
-//   const list_output: boolean = /\[.*?\]/.test(JSON.stringify(output_format));
+  for (let i = 0; i < num_tries; i++) {
+    let output_format_prompt: string = `\nYou are to output the following in json format: ${JSON.stringify(
+      output_format
+    )}. \nDo not put quotation marks or escape character \\ in the output fields.`;
 
-//   let error_msg: string = "";
+    if (list_output) {
+      output_format_prompt += `\nIf output field is a list, classify output into the best element of the list.`;
+    }
 
-//   for (let i = 0; i < num_tries; i++) {
-//     let output_format_prompt: string = `\nYou are to output the following in json format: ${JSON.stringify(
-//       output_format
-//     )}. \nDo not put quotation marks or escape character \\ in the output fields.`;
+    if (dynamic_elements) {
+      output_format_prompt += `\nAny text enclosed by < and > indicates you must generate content to replace it. Example input: Go to <location>, Example output: Go to the garden\nAny output key containing < and > indicates you must generate the key name to replace it. Example input: {'<location>': 'description of location'}, Example output: {school: a place for education}`;
+    }
 
-//     if (list_output) {
-//       output_format_prompt += `\nIf output field is a list, classify output into the best element of the list.`;
-//     }
+    if (list_input) {
+      output_format_prompt += `\nGenerate a list of json, one json for each input element.`;
+    }
 
-//     if (dynamic_elements) {
-//       output_format_prompt += `\nAny text enclosed by < and > indicates you must generate content to replace it. Example input: Go to <location>, Example output: Go to the garden\nAny output key containing < and > indicates you must generate the key name to replace it. Example input: {'<location>': 'description of location'}, Example output: {school: a place for education}`;
-//     }
+    const response = await openai.chat.completions.create({
+      temperature: temperature,
+      model: model,
+      messages: [
+        {
+          role: "system",
+          content: system_prompt + output_format_prompt + error_msg,
+        },
+        { role: "user", content: user_prompt.toString() },
+      ],
+    });
 
-//     if (list_input) {
-//       output_format_prompt += `\nGenerate a list of json, one json for each input element.`;
-//     }
+    let res: string = response.choices[0].message?.content ?? "";
 
-//     try {
-//       const response = await openai.createChatCompletion({
-//         temperature: temperature,
-//         model: model,
-//         messages: [
-//           {
-//             role: "system",
-//             content: system_prompt + output_format_prompt + error_msg,
-//           },
-//           { role: "user", content: user_prompt.toString() },
-//         ],
-//       });
+    if (verbose) {
+      console.log(
+        "System prompt:",
+        system_prompt + output_format_prompt + error_msg
+      );
+      console.log("\nUser prompt:", user_prompt);
+      console.log("\nGPT response:", res);
+    }
 
-//       let res: string =
-//         response.data.choices[0].message?.content?.replace(/'/g, '"')?? "";
+    try {
+      // Pre-process the response to clean up common issues
+      res = res.replace(/\\n/g, "").replace(/\\"/g, '"');
 
-//       res = res.replace(/(\w)"(\w)/g, "$1'$2");
+      let output: any;
+      try {
+        output = JSON.parse(res);
+      } catch (e) {
+        console.error(`Error parsing JSON response: ${e}`);
+        error_msg = `\n\nResult: ${res}\n\nError message: ${e}`;
+        continue;
+      }
 
-//       if (verbose) {
-//         console.log(
-//           "System prompt:",
-//           system_prompt + output_format_prompt + error_msg
-//         );
-//         console.log("\nUser prompt:", user_prompt);
-//         console.log("\nGPT response:", res);
-//       }
+      if (list_input) {
+        if (!Array.isArray(output)) {
+          throw new Error("Output format not in a list of json");
+        }
+      } else {
+        output = [output];
+      }
 
-//       let output: any = JSON.parse(res);
+      for (let index = 0; index < output.length; index++) {
+        for (const key in output_format) {
+          if (/<.*?>/.test(key)) {
+            continue;
+          }
 
-//       if (list_input) {
-//         if (!Array.isArray(output)) {
-//           throw new Error("Output format not in a list of json");
-//         }
-//       } else {
-//         output = [output];
-//       }
+          if (!(key in output[index])) {
+            throw new Error(`${key} not in json output`);
+          }
 
-//       for (let index = 0; index < output.length; index++) {
-//         for (const key in output_format) {
-//           if (/<.*?>/.test(key)) {
-//             continue;
-//           }
+          if (Array.isArray(output_format[key])) {
+            const choices = output_format[key] as string[];
+            if (Array.isArray(output[index][key])) {
+              output[index][key] = output[index][key][0];
+            }
+            if (!choices.includes(output[index][key]) && default_category) {
+              output[index][key] = default_category;
+            }
+            if (output[index][key].includes(":")) {
+              output[index][key] = output[index][key].split(":")[0];
+            }
+          }
+        }
 
-//           if (!(key in output[index])) {
-//             throw new Error(`${key} not in json output`);
-//           }
+        if (output_value_only) {
+          output[index] = Object.values(output[index]);
+          if (output[index].length === 1) {
+            output[index] = output[index][0];
+          }
+        }
+      }
 
-//           if (Array.isArray(output_format[key])) {
-//             const choices = output_format[key] as string[];
-//             if (Array.isArray(output[index][key])) {
-//               output[index][key] = output[index][key][0];
-//             }
-//             if (!choices.includes(output[index][key]) && default_category) {
-//               output[index][key] = default_category;
-//             }
-//             if (output[index][key].includes(":")) {
-//               output[index][key] = output[index][key].split(":")[0];
-//             }
-//           }
-//         }
+      return list_input ? output : output[0];
+    } catch (e) {
+      error_msg = `\n\nResult: ${res}\n\nError message: ${e}`;
+      console.log("An exception occurred:", e);
+      console.log("Current invalid json format:", res);
+    }
+  }
 
-//         if (output_value_only) {
-//           output[index] = Object.values(output[index]);
-//           if (output[index].length === 1) {
-//             output[index] = output[index][0];
-//           }
-//         }
-//       }
-
-//       return output.map((item) => ({
-//         question: Object.keys(item)[0],
-//         answer: Object.values(item)[0],
-//       }));
-//     } catch (e) {
-//       error_msg = `\n\nResult: ${res}\n\nError message: ${e}`;
-//       console.log("An exception occurred:", e);
-//       console.log("Current invalid json format:", res);
-//     }
-//   }
-
-//   throw new Error("Failed to generate output after " + num_tries + " tries");
-// }
-// }
+  return [];
+}
